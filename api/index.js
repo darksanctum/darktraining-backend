@@ -4,20 +4,29 @@ const cors = require('cors');
 
 const app = express();
 
-// CONFIGURACIÓN DE CORS EXPLÍCITA
-// Solo permitimos peticiones desde tu página del Santuario.
-const whitelist = ['https://darktraining-santuario.vercel.app'];
+// EN TU ARCHIVO DE BACKEND (index.js o app.js)
+
+// CONFIGURACIÓN DE CORS MÁS FLEXIBLE
+const whitelist = [
+    'https://darktraining-santuario.vercel.app', // Tu URL de producción
+    'http://localhost:3000', // Si pruebas localmente
+    'http://127.0.0.1:5500' // Común para Live Server de VSCode
+];
+
 const corsOptions = {
   origin: function (origin, callback) {
-    if (whitelist.indexOf(origin) !== -1 || !origin) {
+    // Permite peticiones sin 'origin' (como las de Postman o apps móviles) Y las de la whitelist.
+    // El regex permite cualquier subdominio de vercel.app, muy útil para previews.
+    if (!origin || whitelist.indexOf(origin) !== -1 || /--[a-z0-9-]+\.vercel\.app$/.test(origin)) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      callback(new Error('Acceso denegado por CORS'));
     }
   }
 };
 
-app.use(cors(corsOptions)); 
+app.use(cors(corsOptions));
+// ... el resto de tu código
 app.use(express.json());
 
 // Chequeo de salud
