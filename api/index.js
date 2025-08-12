@@ -1,40 +1,38 @@
+// Contenido completo para tu archivo: api/index.js
+
 const express = require('express');
 const mercadopago = require('mercadopago');
 const cors = require('cors');
 
 const app = express();
 
-// EN TU ARCHIVO DE BACKEND (index.js o app.js)
-
-// CONFIGURACIÓN DE CORS MÁS FLEXIBLE
+// --- CONFIGURACIÓN DE CORS ---
+// Lista de orígenes permitidos
 const whitelist = [
     'https://darktraining-santuario.vercel.app', // Tu URL de producción
-    'http://localhost:3000', // Si pruebas localmente
-    'http://127.0.0.1:5500' // Común para Live Server de VSCode
 ];
 
 const corsOptions = {
   origin: function (origin, callback) {
-    // Permite peticiones sin 'origin' (como las de Postman o apps móviles) Y las de la whitelist.
-    // El regex permite cualquier subdominio de vercel.app, muy útil para previews.
+    // Permitimos orígenes de la whitelist y también las URLs de preview de Vercel
     if (!origin || whitelist.indexOf(origin) !== -1 || /--[a-z0-9-]+\.vercel\.app$/.test(origin)) {
       callback(null, true);
     } else {
-      callback(new Error('Acceso denegado por CORS'));
+      callback(new Error('Acceso denegado por una política de CORS estricta.'));
     }
   }
 };
 
-app.use(cors(corsOptions));
-// ... el resto de tu código
+app.use(cors(corsOptions)); 
 app.use(express.json());
 
-// Chequeo de salud
+// --- CHEQUEO DE SALUD ---
+// Vercel ahora encontrará esta ruta en /api/health
 app.get('/api/health', (req, res) => {
     res.status(200).send('OK: El nexo está operativo.');
 });
 
-// CONFIGURACIÓN DE MERCADO PAGO
+// --- CONFIGURACIÓN DE MERCADO PAGO ---
 const accessToken = process.env.MP_ACCESS_TOKEN;
 if (!accessToken) {
     console.error("ERROR CRÍTICO: La variable de entorno MP_ACCESS_TOKEN no está configurada.");
@@ -44,7 +42,8 @@ if (!accessToken) {
     });
 }
 
-// RUTA PARA CREAR LA PREFERENCIA DE PAGO
+// --- RUTA PARA CREAR LA PREFERENCIA DE PAGO ---
+// Vercel ahora encontrará esta ruta en /api/create-preference
 app.post('/api/create-preference', async (req, res) => {
     if (!accessToken) {
         return res.status(500).json({ error: 'El servidor de pago no está configurado correctamente.' });
@@ -79,5 +78,5 @@ app.post('/api/create-preference', async (req, res) => {
     }
 });
 
-// Exporta la app para Vercel.
+// Exporta la app para que Vercel la pueda usar.
 module.exports = app;
