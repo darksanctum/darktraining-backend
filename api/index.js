@@ -1,5 +1,5 @@
 // Contenido completo y corregido para tu archivo: api/index.js
-
+console.log("--- El archivo del nexo se está ejecutando ---");
 const express = require('express');
 // La v2 del SDK exporta clases, no un objeto global
 const { MercadoPagoConfig, Preference } = require('mercadopago');
