@@ -1,20 +1,18 @@
-// Contenido completo para tu archivo: api/index.js
+// Contenido completo y corregido para tu archivo: api/index.js
 
 const express = require('express');
-const mercadopago = require('mercadopago');
+// La v2 del SDK exporta clases, no un objeto global
+const { MercadoPagoConfig, Preference } = require('mercadopago');
 const cors = require('cors');
 
 const app = express();
 
 // --- CONFIGURACIÓN DE CORS ---
-// Lista de orígenes permitidos
 const whitelist = [
-    'https://darktraining-santuario.vercel.app', // Tu URL de producción
+    'https://darktraining-santuario.vercel.app',
 ];
-
 const corsOptions = {
   origin: function (origin, callback) {
-    // Permitimos orígenes de la whitelist y también las URLs de preview de Vercel
     if (!origin || whitelist.indexOf(origin) !== -1 || /--[a-z0-9-]+\.vercel\.app$/.test(origin)) {
       callback(null, true);
     } else {
@@ -22,28 +20,24 @@ const corsOptions = {
     }
   }
 };
-
 app.use(cors(corsOptions)); 
 app.use(express.json());
 
 // --- CHEQUEO DE SALUD ---
-// Vercel ahora encontrará esta ruta en /api/health
 app.get('/api/health', (req, res) => {
     res.status(200).send('OK: El nexo está operativo.');
 });
 
-// --- CONFIGURACIÓN DE MERCADO PAGO ---
+// --- CONFIGURACIÓN DE MERCADO PAGO (Sintaxis v2) ---
 const accessToken = process.env.MP_ACCESS_TOKEN;
 if (!accessToken) {
     console.error("ERROR CRÍTICO: La variable de entorno MP_ACCESS_TOKEN no está configurada.");
-} else {
-    mercadopago.configure({
-        access_token: accessToken
-    });
 }
+// Se inicializa el cliente con la configuración
+const client = new MercadoPagoConfig({ accessToken: accessToken });
 
-// --- RUTA PARA CREAR LA PREFERENCIA DE PAGO ---
-// Vercel ahora encontrará esta ruta en /api/create-preference
+
+// --- RUTA PARA CREAR LA PREFERENCIA DE PAGO (Sintaxis v2) ---
 app.post('/api/create-preference', async (req, res) => {
     if (!accessToken) {
         return res.status(500).json({ error: 'El servidor de pago no está configurado correctamente.' });
@@ -55,7 +49,7 @@ app.post('/api/create-preference', async (req, res) => {
             return res.status(400).json({ error: 'Título y precio son requeridos.' });
         }
 
-        let preference = {
+        const preferenceData = {
             items: [{
                 title: title,
                 unit_price: Number(price),
@@ -69,8 +63,12 @@ app.post('/api/create-preference', async (req, res) => {
             auto_return: "approved",
         };
 
-        const response = await mercadopago.preferences.create(preference);
-        res.json({ id: response.body.id });
+        // Se crea una instancia de Preference con el cliente
+        const preference = new Preference(client);
+        // Se crea la preferencia usando la nueva sintaxis
+        const result = await preference.create({ body: preferenceData });
+
+        res.json({ id: result.id });
 
     } catch (error) {
         console.error("Error al crear la preferencia de pago:", error);
