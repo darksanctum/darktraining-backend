@@ -1,48 +1,39 @@
-// Contenido completo y corregido para tu archivo: api/index.js
-console.log("--- El archivo del nexo se está ejecutando ---");
+// Este es el corazón de tu backend automatizado.
+
 const express = require('express');
-// La v2 del SDK exporta clases, no un objeto global
-const { MercadoPagoConfig, Preference } = require('mercadopago');
+const { MercadoPagoConfig, Preference, Payment } = require('mercadopago');
 const cors = require('cors');
+const nodemailer = require('nodemailer');
 
 const app = express();
 
-// --- CONFIGURACIÓN DE CORS ---
-const whitelist = [
-    'https://darktraining-santuario.vercel.app',
-];
-const corsOptions = {
-  origin: function (origin, callback) {
-    if (!origin || whitelist.indexOf(origin) !== -1 || /--[a-z0-9-]+\.vercel\.app$/.test(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Acceso denegado por una política de CORS estricta.'));
-    }
-  }
-};
-app.use(cors(corsOptions)); 
+// --- CONFIGURACIÓN GENERAL ---
+app.use(cors()); // Para desarrollo, podemos ser más permisivos. En producción, ajusta los orígenes.
 app.use(express.json());
 
-// --- CHEQUEO DE SALUD ---
-app.get('/api/health', (req, res) => {
-    res.status(200).send('OK: El nexo está operativo.');
+// --- INICIALIZACIÓN DE SERVICIOS ---
+
+// Cliente de Mercado Pago: Usa tu Access Token de las variables de entorno.
+const mpClient = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN });
+
+// Transportador de Nodemailer: Configurado para enviar emails.
+// NOTA IMPORTANTE: Deberás crear variables de entorno en Vercel para EMAIL_USER y EMAIL_PASS.
+// Si usas Gmail, EMAIL_USER es tu correo y EMAIL_PASS es una "Contraseña de Aplicación" que generas en la configuración de seguridad de tu cuenta de Google.
+const transporter = nodemailer.createTransport({
+    host: 'smtp.gmail.com', // Host para Gmail. Cambia si usas otro servicio.
+    port: 465,
+    secure: true, // true para 465, false para otros puertos
+    auth: {
+        user: process.env.EMAIL_USER, // Tu dirección de correo
+        pass: process.env.EMAIL_PASS, // Tu contraseña de aplicación
+    },
 });
 
-// --- CONFIGURACIÓN DE MERCADO PAGO (Sintaxis v2) ---
-const accessToken = process.env.MP_ACCESS_TOKEN;
-if (!accessToken) {
-    console.error("ERROR CRÍTICO: La variable de entorno MP_ACCESS_TOKEN no está configurada.");
-}
-// Se inicializa el cliente con la configuración
-const client = new MercadoPagoConfig({ accessToken: accessToken });
+// --- RUTAS DE LA API ---
 
-
-// --- RUTA PARA CREAR LA PREFERENCIA DE PAGO (Sintaxis v2) ---
+// 1. RUTA PARA CREAR LA PREFERENCIA DE PAGO
+// El frontend llamará a esta ruta para obtener un ID de preferencia.
 app.post('/api/create-preference', async (req, res) => {
-    if (!accessToken) {
-        return res.status(500).json({ error: 'El servidor de pago no está configurado correctamente.' });
-    }
-    
     try {
         const { title, price } = req.body;
         if (!title || !price) {
@@ -56,25 +47,78 @@ app.post('/api/create-preference', async (req, res) => {
                 quantity: 1,
             }],
             back_urls: {
-                success: "https://darksanctum.com.mx/pages/gracias-por-tu-compra",
-                failure: "https://darksanctum.com.mx/pages/pago-fallido",
-                pending: "https://darksanctum.com.mx/pages/pago-pendiente"
+                success: "https://darktraining-santuario.vercel.app/gracias", // Una página de "Gracias" que puedes crear
+                failure: "https://darktraining-santuario.vercel.app/pago-fallido",
             },
             auto_return: "approved",
+            // URL del Webhook: A donde Mercado Pago nos notificará sobre el pago.
+            // DEBES reemplazar 'https://tu-backend.vercel.app' con la URL real de tu backend desplegado en Vercel.
+            notification_url: `${process.env.BACKEND_URL}/api/payment-webhook`,
         };
 
-        // Se crea una instancia de Preference con el cliente
-        const preference = new Preference(client);
-        // Se crea la preferencia usando la nueva sintaxis
+        const preference = new Preference(mpClient);
         const result = await preference.create({ body: preferenceData });
 
         res.json({ id: result.id });
 
     } catch (error) {
-        console.error("Error al crear la preferencia de pago:", error);
-        res.status(500).json({ error: 'Error interno al crear la preferencia de pago.' });
+        console.error("Error al crear la preferencia:", error);
+        res.status(500).json({ error: 'Error interno al crear la preferencia.' });
     }
 });
 
-// Exporta la app para que Vercel la pueda usar.
+// 2. RUTA PARA RECIBIR WEBHOOKS DE PAGO
+// Mercado Pago llamará a esta ruta automáticamente después de un pago.
+app.post('/api/payment-webhook', async (req, res) => {
+    console.log("Webhook de Mercado Pago recibido.");
+
+    try {
+        const notification = req.body;
+        // Verificamos que sea una notificación de pago y que sea una acción de pago creado/actualizado.
+        if (notification.type === 'payment' && notification.action === 'payment.created') {
+            console.log(`Procesando pago con ID: ${notification.data.id}`);
+
+            // Obtenemos los detalles completos del pago desde Mercado Pago
+            const payment = await new Payment(mpClient).get({ id: notification.data.id });
+
+            // Si el pago está aprobado, enviamos el email.
+            if (payment.status === 'approved') {
+                const payerEmail = payment.payer.email;
+                const payerName = payment.payer.first_name || 'nuevo adepto';
+
+                console.log(`Pago aprobado para ${payerEmail}. Enviando email de bienvenida...`);
+
+                // Configuración del Email
+                const mailOptions = {
+                    from: `"DARKTRAINING" <${process.env.EMAIL_USER}>`,
+                    to: payerEmail,
+                    subject: "Tu transformación ha comenzado | Siguientes pasos - DARKTRAINING",
+                    html: `
+                        <h1>¡El pacto ha sido forjado, ${payerName}!</h1>
+                        <p>Bienvenido al Santuario. Tu disciplina te ha traído hasta aquí, ahora empieza el verdadero trabajo.</p>
+                        <p>Para poder diseñar tu plan de batalla personalizado, necesito que completes el siguiente formulario de iniciación. Tómate tu tiempo y sé lo más detallado posible.</p>
+                        <a href="https://tu-enlace-de-google-forms.com" style="background-color: #CF2323; color: white; padding: 15px 25px; text-decoration: none; border-radius: 5px; display: inline-block; font-family: sans-serif;">
+                            Comenzar: Llenar Formulario de Iniciación
+                        </a>
+                        <p>Una vez completado, recibirás tu plan en la app de Kahunas en un plazo de 24-48 horas.</p>
+                        <p>Que la oscuridad guíe tu esfuerzo.</p>
+                    `
+                };
+
+                // Envío del email
+                await transporter.sendMail(mailOptions);
+                console.log(`Email enviado con éxito a ${payerEmail}`);
+            }
+        }
+
+        // Respondemos a Mercado Pago con un 200 OK para que sepa que recibimos la notificación.
+        res.status(200).send('OK');
+
+    } catch (error) {
+        console.error("Error en el webhook de Mercado Pago:", error);
+        res.status(500).send('Error procesando el webhook.');
+    }
+});
+
+// Exportamos la app para que Vercel la pueda usar.
 module.exports = app;
