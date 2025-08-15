@@ -97,7 +97,7 @@ app.post('/api/payment-webhook', async (req, res) => {
                         <h1>¡El pacto ha sido forjado, ${payerName}!</h1>
                         <p>Bienvenido al Santuario. Tu disciplina te ha traído hasta aquí, ahora empieza el verdadero trabajo.</p>
                         <p>Para poder diseñar tu plan de batalla personalizado, necesito que completes el siguiente formulario de iniciación. Tómate tu tiempo y sé lo más detallado posible.</p>
-                        <a href="https://tu-enlace-de-google-forms.com" style="background-color: #CF2323; color: white; padding: 15px 25px; text-decoration: none; border-radius: 5px; display: inline-block; font-family: sans-serif;">
+                        <a href="https://docs.google.com/forms/d/e/1FAIpQLSfWx2lqQbwlNibUg9GRNjz7hA_OQhh4t2ajy9-uijBo2ftEpg/viewform?usp=header" style="background-color: #CF2323; color: white; padding: 15px 25px; text-decoration: none; border-radius: 5px; display: inline-block; font-family: sans-serif;">
                             Comenzar: Llenar Formulario de Iniciación
                         </a>
                         <p>Una vez completado, recibirás tu plan en la app de Kahunas en un plazo de 24-48 horas.</p>
